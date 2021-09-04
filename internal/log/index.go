@@ -10,7 +10,7 @@ import (
 var (
 	offWidth uint64 = 4
 	posWidth uint64 = 8
-	entWidth        = offWidth + posWidth
+	EntWidth        = offWidth + posWidth
 )
 
 type index struct {
@@ -58,27 +58,27 @@ func (i *index) Read(in int64) (out uint32, pos uint64, err error) {
 		return 0, 0, io.EOF
 	}
 	if in == -1 {
-		out = uint32((i.size / entWidth) - 1)
+		out = uint32((i.size / EntWidth) - 1)
 	} else {
 		out = uint32(in)
 	}
-	pos = uint64(out) * entWidth
-	if i.size < pos+entWidth {
+	pos = uint64(out) * EntWidth
+	if i.size < pos+EntWidth {
 		return 0, 0, io.EOF
 	}
 	out = enc.Uint32(i.mmap[pos : pos+offWidth])
-	pos = enc.Uint64(i.mmap[pos+offWidth : pos+entWidth])
+	pos = enc.Uint64(i.mmap[pos+offWidth : pos+EntWidth])
 	return out, pos, nil
 }
 
 func (i *index) Write(off uint32, pos uint64) error {
-	if uint64(len(i.mmap)) < i.size+entWidth {
+	if uint64(len(i.mmap)) < i.size+EntWidth {
 		return io.EOF
 	}
 
 	enc.PutUint32(i.mmap[i.size:i.size+offWidth], off)
-	enc.PutUint64(i.mmap[i.size+offWidth:i.size+entWidth], pos)
-	i.size += uint64(entWidth)
+	enc.PutUint64(i.mmap[i.size+offWidth:i.size+EntWidth], pos)
+	i.size += uint64(EntWidth)
 	return nil
 }
 
