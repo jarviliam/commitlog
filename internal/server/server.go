@@ -4,14 +4,29 @@ import (
 	"context"
 
 	api "github.com/jarviliam/commitlog/api/v1"
-	"github.com/jarviliam/commitlog/internal/log"
+	"google.golang.org/grpc"
 )
 
+type CommitLog interface {
+	Append(*api.Record) (uint64, error)
+	Read(uint64) (*api.Record, error)
+}
+
 type Config struct {
-	CommitLog log.Log
+	CommitLog CommitLog
 }
 
 var _ api.LogServer = (*grpcServer)(nil)
+
+func NewGRPCServer(config *Config, opts ...grpc.ServerOption) (*grpc.Server, error) {
+	gsrv := grpc.NewServer(opts...)
+	srv, err := newgrpcServer(config)
+	if err != nil {
+		return nil, err
+	}
+	api.RegisterLogServer(gsrv, srv)
+	return gsrv, nil
+}
 
 type grpcServer struct {
 	api.UnimplementedLogServer
