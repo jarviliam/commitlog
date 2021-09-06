@@ -7,11 +7,13 @@ import (
 	"testing"
 
 	api "github.com/jarviliam/commitlog/api/v1"
+	"github.com/jarviliam/commitlog/internal/auth"
 	"github.com/jarviliam/commitlog/internal/config"
 	"github.com/jarviliam/commitlog/internal/log"
 	"github.com/jarviliam/commitlog/internal/server"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 )
 
@@ -20,6 +22,7 @@ func TestServer(t *testing.T) {
 		"produce/consume a message via stream": testProduceConsumeStream,
 		"produce/consume a message":            testProduceConsume,
 		"consume past fails":                   testConsumePastBoundary,
+		"unauthorized fails":                   testUnauthorized,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			client, nobodyClient, config, teardown := setupTest(t, nil)
@@ -69,8 +72,10 @@ func setupTest(t *testing.T, fn func(*server.Config)) (client api.LogClient, nob
 	clog, err := log.NewLog(dir, log.Config{})
 	require.NoError(t, err)
 
+	authorizer := auth.New(config.ACLModelFile, config.ACLPolicyFile)
 	cfg = &server.Config{
-		CommitLog: clog,
+		CommitLog:  clog,
+		Authorizer: authorizer,
 	}
 	if fn != nil {
 		fn(cfg)
@@ -162,5 +167,30 @@ func testProduceConsumeStream(t *testing.T, client api.LogClient, _ api.LogClien
 			})
 		}
 
+	}
+}
+
+func testUnauthorized(t *testing.T, _, client api.LogClient, config *server.Config) {
+	ctx := context.Background()
+	produce, err := client.Produce(ctx, &api.ProduceRequest{
+		Record: &api.Record{
+			Value: []byte("hello world"),
+		},
+	})
+	if produce != nil {
+		t.Fatalf("Produce Response should be nil")
+	}
+	got, want := grpc.Code(err), codes.PermissionDenied
+
+	if got != want {
+		t.Fatalf("got : %d, want: %d", got, want)
+	}
+	consume, err := client.Consume(ctx, &api.ConsumeRequest{Offset: 0})
+	if consume != nil {
+		t.Fatalf("Consume should be nil")
+	}
+	got, want = grpc.Code(err), codes.PermissionDenied
+	if got != want {
+		t.Fatalf("got : %d, want: %d", got, want)
 	}
 }
